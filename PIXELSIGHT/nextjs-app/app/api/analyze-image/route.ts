@@ -1,51 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from "next/server"
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const formData = await req.formData()
-    const imageFile = formData.get('image') as File
+    const { image } = await req.json()
 
-    if (!imageFile) {
-      return NextResponse.json({ error: 'No image file provided' }, { status: 400 })
+    if (!image) {
+      return NextResponse.json({ error: "No image provided" }, { status: 400 })
     }
 
-    // For now, return a mock analysis
-    // In a real implementation, you would:
-    // 1. Process the image using computer vision APIs
-    // 2. Extract features or descriptions
-    // 3. Send the description to Ollama for further analysis
-
-    const mockDescription = "This image appears to contain various objects and elements that could be analyzed further."
-
-    // Send description to Ollama for analysis
-    const response = await fetch('http://localhost:11434/api/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+    // Call Ollama with stream disabled
+    const response = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: 'llama2',
-        prompt: `Please provide a detailed analysis of this image description: "${mockDescription}"`,
-        stream: false,
+        model: "llava:latest",  // make sure this matches `ollama list`
+        prompt: "Describe this image in detail.",
+        images: [image],
+        stream: false,          // 👈 important
       }),
     })
 
     if (!response.ok) {
-      throw new Error('Failed to get response from Ollama')
+      return NextResponse.json({ error: "Ollama request failed" }, { status: 500 })
     }
 
     const data = await response.json()
-    
-    return NextResponse.json({ 
-      description: mockDescription,
-      analysis: data.response || 'No analysis available',
-      confidence: 0.85
-    })
+
+    // Debugging: log raw response
+    console.log("OLLAMA RESPONSE:", data)
+
+    return NextResponse.json({ result: data.response ?? "No response field found" })
   } catch (error) {
-    console.error('Image analysis API error:', error)
+    console.error("API ERROR:", error)
     return NextResponse.json(
-      { error: 'Failed to analyze image' },
+      { error: "Image analysis failed", details: String(error) },
       { status: 500 }
     )
   }
-} 
+}
